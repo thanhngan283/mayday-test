@@ -1,11 +1,12 @@
 # Hệ Thống Kiểm Thử Tự Động Hóa API Thực Tế (Black-box Real API Testing)
 ## Dự Án: Quản Lý Bệnh Án Mày Đay & Phản Vệ (Urticaria & Anaphylaxis Medical Record System)
+### Lưu ý: các tên folder Doc và Work là Doc và Work của người dùng riêng chứ không phải là Doc và Work có ở trong github.
 
 Dự án kiểm thử hộp đen (Black-box Testing) gọi trực tiếp vào hệ thống Backend API thực tế (**Zero Mocking**) được xây dựng bằng **TypeScript**, **Jest**, **Supertest** và xuất báo cáo trực quan bằng **`jest-html-reporters`**.
 
 > **Nguyên tắc phân tách thư mục**:
-> - `D:\doAn`: Thư mục chứa tài liệu đặc tả gốc (API HTML specs, Thiết kế giao diện Bác sĩ & Bệnh nhân, Bảng gộp mã phản hồi, `TestCaseDesign.md`).
-> - `D:\doAnWork`: Thư mục chứa toàn bộ mã nguồn kiểm thử tự động, cấu hình, fixtures đối chiếu UI và báo cáo HTML.
+> - `Doc`: Thư mục chứa tài liệu đặc tả gốc (API HTML specs, Thiết kế giao diện Bác sĩ & Bệnh nhân, Bảng gộp mã phản hồi, `TestCaseDesign.md`).
+> - `Work`: Thư mục chứa toàn bộ mã nguồn kiểm thử tự động, cấu hình, fixtures đối chiếu UI và báo cáo HTML.
 
 ---
 
@@ -26,10 +27,10 @@ npm -v
 
 ## 2. Hướng Dẫn Cài Đặt (Installation)
 
-Mở Terminal / PowerShell tại thư mục `D:\doAnWork` và chạy lệnh cài đặt toàn bộ thư viện:
+Mở Terminal / PowerShell tại thư mục `D:\Work` và chạy lệnh cài đặt toàn bộ thư viện:
 
 ```bash
-cd D:\doAnWork
+cd D:\Work
 npm install
 ```
 *(Lưu ý cho Windows PowerShell: Nếu máy tính đang bật `Restricted ExecutionPolicy` chặn file `npm.ps1`, bạn có thể chạy `npm.cmd install` và `npm.cmd test`, hoặc mở khóa tạm thời bằng `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`).*
@@ -88,10 +89,10 @@ PATIENT_PASSWORD=Patient@123456
 
 ## 4. Cấu Trúc Thư Mục Theo Lịch Trình 10 Tuần (91 APIs)
 
-Toàn bộ `tests/` được chia thành **10 thư mục tuần** tương ứng chính xác với bảng phân phối 91 API trong tài liệu `D:\doAn\api\1. Weekly API.html`:
+Toàn bộ `tests/` được chia thành **10 thư mục tuần** tương ứng chính xác với bảng phân phối 91 API trong tài liệu `D:\Doc\api\1. Weekly API.html`:
 
 ```text
-D:\doAnWork/
+D:\Work/
 ├── .env.example                     # Mẫu cấu hình biến môi trường
 ├── .env                             # Cấu hình Base URL & tài khoản thực thi
 ├── package.json                     # Khai báo scripts và dependencies
@@ -207,7 +208,7 @@ npx jest tests/week6_medrec_create_read/medrec_classify_and_create.spec.ts
 Ngay sau khi bất kỳ lệnh `npm test` hoặc `npm run test:week*` nào kết thúc, báo cáo HTML sẽ tự động được xuất ra tại:
 
 ```text
-D:\doAnWork\reports\test-report.html
+D:\\reports\test-report.html
 ```
 
 Để mở trực tiếp báo cáo trên trình duyệt mặc định của Windows (PowerShell/CMD):
@@ -229,7 +230,7 @@ Báo cáo hiển thị rõ:
 - **Teardown (`afterEach` / `afterAll`)**: Sử dụng `TeardownRegistry` (`src/utils/teardownRegistry.ts`) tự động gọi các API `DELETE` tương ứng theo thứ tự ngược (LIFO) để xóa sạch dữ liệu rác vừa tạo trong quá trình test.
 
 ### 7.2. Bảng Mã Phản Hồi Đã Gộp (Consolidated Response Codes)
-Mọi lệnh `expectResponseCode(res.body.code, ...)` chỉ kiểm tra theo bảng mã chuẩn hóa trong `D:\doAn\api\3. response code.html`:
+Mọi lệnh `expectResponseCode(res.body.code, ...)` chỉ kiểm tra theo bảng mã chuẩn hóa trong `D:\\api\3. response code.html`:
 
 | Mã Code | Tên Hằng Số | Ý Nghĩa Chuẩn Hóa (Đã Gộp Mã Cũ) |
 | :---: | :--- | :--- |

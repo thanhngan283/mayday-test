@@ -26,10 +26,10 @@ npm -v
 
 ## 2. Hướng Dẫn Cài Đặt (Installation)
 
-Mở Terminal / PowerShell tại thư mục `D:\doAnWork` và chạy lệnh cài đặt toàn bộ thư viện:
+Mở Terminal / PowerShell tại thư mục `D:\Work` và chạy lệnh cài đặt toàn bộ thư viện:
 
 ```bash
-cd D:\doAnWork
+cd D:\Work
 npm install
 ```
 *(Lưu ý cho Windows PowerShell: Nếu máy tính đang bật `Restricted ExecutionPolicy` chặn file `npm.ps1`, bạn có thể chạy `npm.cmd install` và `npm.cmd test`, hoặc mở khóa tạm thời bằng `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`).*
@@ -198,7 +198,7 @@ npx jest tests/week6_medrec_create_read/medrec_classify_and_create.spec.ts
 Ngay sau khi bất kỳ lệnh `npm test` hoặc `npm run test:week*` nào kết thúc, báo cáo HTML sẽ tự động được xuất ra tại:
 
 ```text
-D:\doAnWork\reports\test-report.html
+D:\\reports\test-report.html
 ```
 
 Để mở trực tiếp báo cáo trên trình duyệt mặc định của Windows (PowerShell/CMD):

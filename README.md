@@ -4,8 +4,8 @@
 Dự án kiểm thử hộp đen (Black-box Testing) gọi trực tiếp vào hệ thống Backend API thực tế (**Zero Mocking**) được xây dựng bằng **TypeScript**, **Jest**, **Supertest** và xuất báo cáo trực quan bằng **`jest-html-reporters`**.
 
 > **Nguyên tắc phân tách thư mục**:
-> - `D:\doAn`: Thư mục chứa tài liệu đặc tả gốc (API HTML specs, Thiết kế giao diện Bác sĩ & Bệnh nhân, Bảng gộp mã phản hồi, `TestCaseDesign.md`).
-> - `D:\doAnWork`: Thư mục chứa toàn bộ mã nguồn kiểm thử tự động, cấu hình, fixtures đối chiếu UI và báo cáo HTML.
+> - `Doc`: Thư mục chứa tài liệu đặc tả gốc (API HTML specs, Thiết kế giao diện Bác sĩ & Bệnh nhân, Bảng gộp mã phản hồi, `TestCaseDesign.md`).
+> - `Work`: Thư mục chứa toàn bộ mã nguồn kiểm thử tự động, cấu hình, fixtures đối chiếu UI và báo cáo HTML.
 
 ---
 

@@ -77,6 +77,26 @@ describe('Week 2 - Users & Roles Management (Real API, Zero Mocking)', () => {
       const res = await apiClients.userRole.get('/api/profile');
       expectResponseCode(res.body.code, RESPONSE_CODES.INVALID_TOKEN);
     });
+
+    it('[TC-PROFILE-05] Advanced Concurrency / Race Condition (`bhyt_so_the`): Dùng Promise.all() gửi đồng thời 2 PUT /api/profile cùng cập nhật 1 số thẻ BHYT duy nhất -> Chỉ 1 pass (1000), 1 fail (9996)', async () => {
+      const uniqueBhyt = `DN401${Date.now().toString().slice(-10)}`;
+      const payload = {
+        full_name: 'Bệnh Nhân Kiểm Thử Trùng Thẻ BHYT',
+        gender: 'male',
+        dob: '1992-05-15',
+        bhyt_so_the: uniqueBhyt,
+        health_insurance_number: uniqueBhyt,
+      };
+
+      const [res1, res2] = await Promise.all([
+        apiClients.userRole.put('/api/profile', payload, { token: sessions.patient.token }),
+        apiClients.userRole.put('/api/profile', payload, { token: sessions.otherPatient.token }),
+      ]);
+
+      const codes = [String(res1.body.code), String(res2.body.code)];
+      expect(codes.filter((c) => c === RESPONSE_CODES.OK)).toHaveLength(1);
+      expect(codes.filter((c) => c === RESPONSE_CODES.ALREADY_EXISTS)).toHaveLength(1);
+    });
   });
 
   describe('2. Admin Users CRUD (/api/admin/users)', () => {

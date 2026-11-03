@@ -16,6 +16,7 @@
     "test:week9": "jest tests/week9_images_uas7 --runInBand",
     "test:week10": "jest tests/week10_prescriptions_lab_notifications --runInBand",
     "test:medrec": "jest tests/week6_medrec_create_read tests/week7_medrec_process_manage --runInBand",
+    "test:advanced": "jest tests/advanced_scenarios --runInBand",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

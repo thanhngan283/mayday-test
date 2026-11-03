@@ -55,30 +55,33 @@ Mở file `.env` để cấu hình địa chỉ máy chủ Backend thực tế:
 
 ```ini
 # Base URL mặc định cho hệ thống Backend (Monolith hoặc API Gateway)
-API_BASE_URL=http://localhost:3000
+DEFAULT_API_BASE_URL=http://localhost:3000
 
-# Cấu hình Base URL riêng biệt cho từng cụm dịch vụ (nếu triển khai Microservices).
-# Nếu để trống, hệ thống tự động kế thừa từ API_BASE_URL.
-AUTH_SERVICE_URL=http://localhost:3000
-USER_ROLE_SERVICE_URL=http://localhost:3000
-ORG_FACILITY_SERVICE_URL=http://localhost:3000
-TEMPLATE_SERVICE_URL=http://localhost:3000
-MEDREC_SERVICE_URL=http://localhost:3000
-LESION_UAS7_SERVICE_URL=http://localhost:3000
-CLINICAL_NOTIFY_SERVICE_URL=http://localhost:3000
+# Cấu hình Base URL động cho từng cụm dịch vụ theo chuẩn QA_Agent.md
+# Nếu để trống, hệ thống tự động kế thừa từ DEFAULT_API_BASE_URL.
+AUTH_BASE_URL=http://localhost:3000
+USER_ROLE_BASE_URL=http://localhost:3000
+ORG_PERMISSION_BASE_URL=http://localhost:3000
+TEMPLATE_BASE_URL=http://localhost:3000
+MEDREC_BASE_URL=http://localhost:3000
+LESION_BASE_URL=http://localhost:3000
+IMAGE_UAS7_BASE_URL=http://localhost:3000
+PRESCRIPTION_LAB_NOTI_BASE_URL=http://localhost:3000
+AI_SERVICE_BASE_URL=http://localhost:3000
 
 # Thời gian chờ tối đa cho mỗi HTTP Request thực tế (ms)
 API_TIMEOUT_MS=15000
+ENABLE_HTTP_TRACE=true
 
 # Tài khoản hạt giống (Seed Credentials) dùng cho Setup thực tế ở beforeAll
 ADMIN_PHONE=0901000001
-ADMIN_PASSWORD=AdminPassword@123
+ADMIN_PASSWORD=Admin@123456
 DOCTOR_PHONE=0901000002
-DOCTOR_PASSWORD=DoctorPassword@123
-NURSE_PHONE=0901000003
-NURSE_PASSWORD=NursePassword@123
+DOCTOR_PASSWORD=Doctor@123456
+SECOND_DOCTOR_PHONE=0901000003
+SECOND_DOCTOR_PASSWORD=Doctor2@123456
 PATIENT_PHONE=0901000004
-PATIENT_PASSWORD=PatientPassword@123
+PATIENT_PASSWORD=Patient@123456
 ```
 
 ---
@@ -97,8 +100,9 @@ D:\doAnWork/
 ├── reports/
 │   └── test-report.html             # Báo cáo kết quả kiểm thử trực quan (tự động sinh sau khi chạy)
 ├── docs/
-│   ├── WEEKLY_API_MAPPING.md        # Bảng ánh xạ chi tiết 91 API vào 10 tuần
-│   └── TEST_CASE_DESIGN_MATRIX.md   # Ma trận thiết kế Test Case & Ràng buộc UI
+│   ├── WEEKLY_API_MAPPING.md            # Bảng ánh xạ chi tiết 91 API vào 10 tuần
+│   ├── TEST_CASE_DESIGN_MATRIX.md       # Ma trận thiết kế Test Case & Ràng buộc UI
+│   └── ADDITIONAL_TEST_CASE_DESIGN.md   # Thiết kế 15 TCs nâng cao: Concurrency, Token Blacklist & Auto-calculated fields
 ├── src/
 │   ├── config/
 │   │   ├── env.ts                   # Đọc biến môi trường & Base URL động
@@ -116,6 +120,8 @@ D:\doAnWork/
 │       └── uiMedicalRecordPayloads.ts # Dữ liệu mẫu chuẩn hóa khớp 100% thiết kế giao diện Bác sĩ & Bệnh nhân
 └── tests/
     ├── setup.ts
+    ├── advanced_scenarios/
+    │   └── concurrency_and_token_blacklist.spec.ts      # Kịch bản nâng cao: Concurrency (Promise.all), Token Blacklist & Read-only fields (15 TCs)
     ├── week1_auth/
     │   └── auth.spec.ts                                 # Tuần 1: Xác thực & Tài khoản (6 APIs)
     ├── week2_users_roles/
@@ -184,6 +190,9 @@ npm run test:week9
 
 # Tuần 10: Đơn thuốc (Prescriptions), Xét nghiệm (Lab) & Thông báo (Notifications/FCM)
 npm run test:week10
+
+# Chạy bộ kịch bản nâng cao (Concurrency / Race Condition với Promise.all, Token Blacklist Lifecycle & Auto-calculated fields)
+npm run test:advanced
 ```
 
 ### 5.4. Chạy một file test bất kỳ theo đường dẫn

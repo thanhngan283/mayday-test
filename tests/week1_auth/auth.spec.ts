@@ -385,5 +385,56 @@ describe('Week 1 - Authentication & Account Management (Real API, Zero Mocking)'
 
       expectResponseCode(res.body.code, RESPONSE_CODES.INVALID_TOKEN);
     });
+
+    it('[TC-LOGOUT-02] Advanced Token Blacklist Lifecycle: Login lấy Token_A -> Gọi Profile 3 lần liên tiếp đều pass (1000 - chống quét nhầm False Positive) -> Logout bằng Token_A (1000) -> Gọi lại Profile bằng Token_A bị chặn đứng (9998)', async () => {
+      // Bước 1: Login lấy Token_A hợp lệ
+      const loginRes = await apiClients.auth.post('/api/auth/login', {
+        phone: ENV.CREDENTIALS.PATIENT.phone,
+        password: ENV.CREDENTIALS.PATIENT.password,
+      });
+      expectResponseCode(loginRes.body.code, RESPONSE_CODES.OK);
+      const tokenA: string = loginRes.body?.data?.token || loginRes.body?.token;
+      expect(tokenA).toBeTruthy();
+
+      // Bước 2 (Kiểm tra False Positive): Dùng Token_A gọi GET /api/profile 3 lần liên tiếp
+      for (let i = 1; i <= 3; i++) {
+        const profileRes = await apiClients.userRole.get('/api/profile', { token: tokenA });
+        expectResponseCode(profileRes.body.code, RESPONSE_CODES.OK);
+      }
+
+      // Bước 3 (Kích hoạt Blacklist): Gọi API Logout bằng Token_A
+      const logoutRes = await apiClients.auth.post('/api/auth/logout', {}, { token: tokenA });
+      expectResponseCode(logoutRes.body.code, RESPONSE_CODES.OK);
+
+      // Bước 4 (Validation rào chắn): Dùng lại chính Token_A gọi GET /api/profile -> Bị chặn với mã 9998
+      const blockedRes = await apiClients.userRole.get('/api/profile', { token: tokenA });
+      expectResponseCode(blockedRes.body.code, RESPONSE_CODES.INVALID_TOKEN);
+    });
+
+    it('[TC-SIGNUP-13] Advanced Concurrency / Race Condition: Dùng Promise.all() gửi đồng thời 2 request đăng ký cùng 1 SĐT -> Chỉ 1 pass (1000), 1 fail (9996)', async () => {
+      const concurrentPhone = generateValidVnPhone('09');
+      const payload = {
+        full_name: 'Kiểm Thử Race Condition SĐT',
+        phone: concurrentPhone,
+        password: 'ValidPassword@123',
+        gender: 'male',
+      };
+
+      const [res1, res2] = await Promise.all([
+        apiClients.auth.post('/api/auth/signup', payload),
+        apiClients.auth.post('/api/auth/signup', payload),
+      ]);
+
+      for (const res of [res1, res2]) {
+        const uid = res.body?.data?.user_id || res.body?.data?.id;
+        if (uid && adminToken) {
+          testCaseTeardown.registerUser(uid, adminToken);
+        }
+      }
+
+      const codes = [String(res1.body.code), String(res2.body.code)];
+      expect(codes.filter((c) => c === RESPONSE_CODES.OK)).toHaveLength(1);
+      expect(codes.filter((c) => c === RESPONSE_CODES.ALREADY_EXISTS)).toHaveLength(1);
+    });
   });
 });

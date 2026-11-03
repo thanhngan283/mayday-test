@@ -88,7 +88,7 @@ PATIENT_PASSWORD=PatientPassword@123
 Toàn bộ `tests/` được chia thành **10 thư mục tuần** tương ứng chính xác với bảng phân phối 91 API trong tài liệu `D:\doAn\api\1. Weekly API.html`:
 
 ```text
-D:\doAnWork/
+D:\Work/
 ├── .env.example                     # Mẫu cấu hình biến môi trường
 ├── .env                             # Cấu hình Base URL & tài khoản thực thi
 ├── package.json                     # Khai báo scripts và dependencies

@@ -1,5 +1,6 @@
 # Hệ Thống Kiểm Thử Tự Động Hóa API Thực Tế (Black-box Real API Testing)
 ## Dự Án: Quản Lý Bệnh Án Mày Đay & Phản Vệ (Urticaria & Anaphylaxis Medical Record System)
+### Lưu ý: các tên folder Doc và Work là Doc và Work của người dùng riêng chứ không phải là Doc và Work có ở trong github.
 
 Dự án kiểm thử hộp đen (Black-box Testing) gọi trực tiếp vào hệ thống Backend API thực tế (**Zero Mocking**) được xây dựng bằng **TypeScript**, **Jest**, **Supertest** và xuất báo cáo trực quan bằng **`jest-html-reporters`**.
 
@@ -85,7 +86,7 @@ PATIENT_PASSWORD=PatientPassword@123
 
 ## 4. Cấu Trúc Thư Mục Theo Lịch Trình 10 Tuần (91 APIs)
 
-Toàn bộ `tests/` được chia thành **10 thư mục tuần** tương ứng chính xác với bảng phân phối 91 API trong tài liệu `D:\doAn\api\1. Weekly API.html`:
+Toàn bộ `tests/` được chia thành **10 thư mục tuần** tương ứng chính xác với bảng phân phối 91 API trong tài liệu `D:\Doc\api\1. Weekly API.html`:
 
 ```text
 D:\Work/
@@ -220,7 +221,7 @@ Báo cáo hiển thị rõ:
 - **Teardown (`afterEach` / `afterAll`)**: Sử dụng `TeardownRegistry` (`src/utils/teardownRegistry.ts`) tự động gọi các API `DELETE` tương ứng theo thứ tự ngược (LIFO) để xóa sạch dữ liệu rác vừa tạo trong quá trình test.
 
 ### 7.2. Bảng Mã Phản Hồi Đã Gộp (Consolidated Response Codes)
-Mọi lệnh `expectResponseCode(res.body.code, ...)` chỉ kiểm tra theo bảng mã chuẩn hóa trong `D:\doAn\api\3. response code.html`:
+Mọi lệnh `expectResponseCode(res.body.code, ...)` chỉ kiểm tra theo bảng mã chuẩn hóa trong `D:\\api\3. response code.html`:
 
 | Mã Code | Tên Hằng Số | Ý Nghĩa Chuẩn Hóa (Đã Gộp Mã Cũ) |
 | :---: | :--- | :--- |

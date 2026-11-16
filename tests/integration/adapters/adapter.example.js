@@ -125,6 +125,10 @@ async function cleanupWeek8Fixtures({ fixtureIds, expectedDatabaseName }) {
     throw new Error(`Implement exact, idempotent Week 8 fixture cleanup in ${expectedDatabaseName} for ${fixtureIds.length} suite-owned fixtures.`);
 }
 
+async function setMinioFailure({ enabled, expectedDatabaseName }) {
+    throw new Error(`Implement the test-only MinIO failure hook in ${expectedDatabaseName} (enabled: ${enabled}).`);
+}
+
 async function resetTestHooks({ expectedDatabaseName }) {
     throw new Error(`Implement OTP/clock hook restoration in ${expectedDatabaseName}.`);
 }
@@ -158,6 +162,7 @@ module.exports = {
     cleanupWeek7Fixtures,
     prepareWeek8LesionPhoto,
     cleanupWeek8Fixtures,
+    setMinioFailure,
     cleanupTestFixtures,
     resetTestHooks
 };

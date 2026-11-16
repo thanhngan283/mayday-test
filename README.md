@@ -1,18 +1,89 @@
-# Mayday API tests — Weeks 1–8
+# Hướng dẫn cài đặt & chạy API Auto-Test — Mayday
 
-Đây là một bộ Jest + Supertest duy nhất, gọi backend qua HTTP. Bộ test không import source của backend, không có mock server `app.js`, không tự khởi động service. Các backend Node.js khác nhau chỉ cần cung cấp đúng API contract và một adapter riêng để chuẩn bị/xóa dữ liệu test.
+Tài liệu dành cho các đội **Backend Node.js** muốn chạy bộ kiểm thử API của dự án Mayday trên backend của mình. Bộ test dùng **Jest + Supertest**, gửi request HTTP tới service đang chạy và không import mã nguồn backend.
 
-## Cài đặt
+> **Phạm vi hiện tại:** 1.606 test case thuộc Week 1–9. Week 10 chưa được chuyển đổi.
 
-Yêu cầu Node.js 18+:
+---
+
+## 1. Nguyên tắc hoạt động & bảo vệ dữ liệu
+
+Bộ test chạy theo kiểu **black-box API testing**: mỗi backend chỉ cần cung cấp service URL, database test riêng và adapter tương thích.
+
+1. **Không chạy mock hoặc app giả lập**
+   - Bộ test không dùng `app.js`, không tự khởi động server và không truy cập trực tiếp database trong các test script.
+   - `npm test` là lệnh duy nhất để chạy các suite hiện có.
+
+2. **Có các bước chặn trước khi gửi request**
+   - Phải khai báo rõ URL, hostname xác nhận, môi trường test, tên database test và đường dẫn adapter.
+   - Database name phải có chữ `test`; hostname xác nhận phải trùng chính xác hostname trong URL.
+   - Backend deploy phải dùng HTTPS. HTTP chỉ được phép với địa chỉ loopback như `127.0.0.1`.
+   - URL chỉ được gồm origin, không kèm credentials, path, query hoặc fragment.
+
+3. **Tài khoản và dữ liệu do suite sở hữu**
+   - Suite đăng ký tài khoản qua API rồi mới nhờ adapter nâng quyền.
+   - Dữ liệu cần ghi/xóa được tạo riêng cho test và được theo dõi bằng ID hoặc token fixture.
+   - Adapter phải chỉ xóa đúng tài khoản và fixture mà suite tạo; **không truncate/reset toàn database**.
+
+4. **Adapter phải xác minh database thật**
+   - Cờ môi trường chỉ là xác nhận của người chạy; trước request đầu tiên, adapter vẫn phải kiểm tra kết nối database thực tế.
+   - Không chạy trên production hoặc database dùng chung.
+
+---
+
+## 2. Yêu cầu môi trường
+
+Trước khi chạy, cần có:
+
+- **Node.js 18 trở lên** và npm.
+- Backend của đội đang chạy tại URL có thể truy cập từ máy chạy test.
+- Một **database test riêng biệt**, đã chạy các migration/seed cần thiết.
+- Adapter riêng của backend, có thể xác minh database và dọn dữ liệu do suite tạo.
+
+> Bộ test không tự bật backend. Với môi trường local, hãy khởi động service trước khi chạy Jest.
+
+---
+
+## 3. Cài đặt bộ Auto-Test
+
+### Bước 1: Lấy repository
+
+```powershell
+git clone <URL_REPOSITORY_MAYDAY_TEST>
+cd mayday-test
+```
+
+### Bước 2: Cài dependency
 
 ```powershell
 npm ci
 ```
 
-## Cấu hình URL cho từng nhóm
+### Bước 3: Chuẩn bị adapter cho backend
 
-Trước khi chạy, xác nhận backend đang trỏ tới **database test riêng biệt**, không phải production hoặc database dùng chung. Mỗi nhóm chạy cùng bộ test bằng cách thay URL, tên target, database và đường dẫn adapter:
+Xem [adapter.example.js](./tests/integration/adapters/adapter.example.js) để biết danh sách hàm và hợp đồng cần triển khai. Adapter là phần phụ thuộc vào database/schema của từng nhóm; test script vẫn chỉ gọi backend qua HTTP.
+
+Adapter mẫu hiện là các hàm placeholder có chủ ý và sẽ báo lỗi cho đến khi nhóm backend triển khai. Tối thiểu, adapter phải xác minh database test, đọc role ID thực tế, promote tài khoản suite vừa đăng ký, xóa chính xác tài khoản/fixture theo quyền sở hữu và khôi phục các test hook sau khi chạy.
+
+---
+
+## 4. Cấu hình target của từng nhóm
+
+Runner hiện đọc cấu hình từ **environment variables**; chưa dùng `.env.test`. Hãy mở PowerShell tại thư mục repository và cấu hình URL, database cùng adapter cho backend cần test.
+
+### Backend local
+
+```powershell
+$env:MAYDAY_TEST_TARGET_NAME = "backend-group-a-local"
+$env:MAYDAY_TEST_BASE_URL = "http://127.0.0.1:3000"
+$env:MAYDAY_TEST_CONFIRM_HOST = "127.0.0.1"
+$env:MAYDAY_TEST_ENV = "1"
+$env:MAYDAY_TEST_DB = "1"
+$env:MAYDAY_TEST_DB_NAME = "mayday_test"
+$env:MAYDAY_TEST_ADAPTER = "C:\path\to\backend\mayday-test-adapter.js"
+```
+
+### Backend trên môi trường deploy
 
 ```powershell
 $env:MAYDAY_TEST_TARGET_NAME = "backend-group-a"
@@ -22,76 +93,113 @@ $env:MAYDAY_TEST_ENV = "1"
 $env:MAYDAY_TEST_DB = "1"
 $env:MAYDAY_TEST_DB_NAME = "mayday_test"
 $env:MAYDAY_TEST_ADAPTER = "C:\path\to\backend\mayday-test-adapter.js"
-npm test
 ```
 
-Với backend local, dùng URL `http://127.0.0.1:<port>` và đặt `MAYDAY_TEST_CONFIRM_HOST` chính xác là `127.0.0.1`. Mọi target, kể cả local, phải bật cờ xác nhận và có database name chứa `test`. Target không loopback bắt buộc HTTPS.
+### Lưu ý cấu hình
 
-Guard kiểm tra URL/host trước khi có request HTTP. Trước request đầu tiên, adapter phải xác nhận kết nối thực tế tới đúng database test. Không cấu hình credential trong test hoặc commit secret. Chỉ các target có thể xóa tài khoản và fixtures do bộ test tạo mới phù hợp để chạy.
+- Thay `MAYDAY_TEST_BASE_URL`, `MAYDAY_TEST_CONFIRM_HOST`, `MAYDAY_TEST_DB_NAME` và `MAYDAY_TEST_ADAPTER` theo đúng target của nhóm.
+- `MAYDAY_TEST_ADAPTER` phải là đường dẫn tuyệt đối tới adapter đã triển khai.
+- `MAYDAY_TEST_CONFIRM_HOST` phải khớp chính xác hostname trong URL.
+- `MAYDAY_TEST_DB_NAME` phải là database test riêng và tên phải chứa `test` (ví dụ `mayday_test`).
+- Backend deploy ngoài loopback bắt buộc dùng HTTPS; URL không được có path, query, fragment hoặc username/password.
+- Không lưu credentials vào test script hoặc commit secrets. Mỗi đội tự cấu hình adapter an toàn cho môi trường của mình.
 
-## Adapter cho từng backend
+---
 
-Adapter mẫu ở [adapter.example.js](./tests/integration/adapters/adapter.example.js) là giao diện cần triển khai cho mỗi nhóm. Adapter là phần duy nhất phụ thuộc database/schema của nhóm; các kiểm thử còn lại chỉ gọi HTTP:
+## 5. Các lệnh chạy test
 
-- xác nhận đúng database test;
-- lấy role ID và nâng quyền cho tài khoản admin do test vừa đăng ký (`director` mặc định role ID `1`);
-- xóa đúng các tài khoản được tạo bởi suite; soft-delete fixture khi case yêu cầu;
-- xóa role test được tạo bởi Week 2;
-- bật/tắt trạng thái tài khoản;
-- lấy OTP bằng test hook, điều khiển test clock và tạo token hết hạn;
-- tạo fixture branch/department/room, gồm các fixture không khớp quan hệ hoặc đã xóa;
-- tạo department/staff phụ thuộc branch và dọn permissions, roles, branches do Week 3 tạo;
-- tạo và dọn các dependency fixtures của khoa, phòng và template do Week 4 tạo;
-- tạo và dọn record test-only dùng template để kiểm tra thao tác bị khóa ở Week 5;
-- tạo và dọn câu hỏi/template classify cùng các bản ghi bệnh án test-only của Week 6;
-- tạo và dọn template/câu hỏi/option cùng bản ghi bệnh án test-only của Week 7;
-- tạo và dọn ảnh fixture test-only; episode/location của Week 8 được tạo qua API;
-- dọn fixture và khôi phục test hook sau khi chạy.
+### Liệt kê các suite Jest nhận diện được
 
-Giá trị adapter cần trả về:
+```powershell
+npm test -- --listTests
+```
 
-- `getRoleIds()`: `{ admin: 1, patient: 8, doctor: 4, nurse: 6, technician: 7 }` (lấy từ DB thực của nhóm; admin phải là `director=1`);
-- `prepareStaffFixture()`: `{ branch_id, department_id, room_id, other_branch_department_id, other_department_room_id, deleted_branch_id, deleted_department_id }`, tất cả ID là số nguyên;
-- `prepareUserWithLinkedData()`: tạo dữ liệu phụ thuộc test-only cho user để xác nhận xóa mềm không làm mất dữ liệu liên quan;
-- `prepareBranchDependencies()`: tạo khoa và, khi được yêu cầu, nhân viên test-only gắn đúng vào branch ID được truyền vào;
-- `cleanupWeek3Resources()`: xóa đúng các permission, role, branch và liên kết mà suite Week 3 đã tạo theo ID;
-- `restoreRolePermission()`: khôi phục liên kết có sẵn của admin nếu backend xóa nhầm liên kết trong case kiểm tra bảo vệ quyền admin;
-- `prepareWeek4OrganizationDependency()`: tạo fixture test-only theo `kind` (`staff_department`, `staff_room`, `template_tree`, `template_in_use`), trả về `{ fixtureId, staffId?, sectionIds?, questionIds? }`;
-- `cleanupWeek4OrganizationDependencies()`: xóa đúng fixture theo các `fixtureId` đã trả về từ hook setup;
-- `prepareWeek5TemplateUsage()`: gắn một record test-only vào template suite vừa tạo, trả về `{ fixtureIds }`;
-- `cleanupWeek5Fixtures()`: xóa chính xác dependency fixture theo các ID đã trả về;
-- `prepareWeek6Fixtures()`: tạo câu hỏi sàng lọc, template/quy tắc ánh xạ và answer fixtures, không tạo tài khoản;
-- `prepareWeek6MedicalRecord()`: tạo một bản ghi test-only theo patient/template/status truyền vào, trả về `{ fixtureId, medicalRecordId, record }`;
-- `cleanupWeek6Fixtures()`: chỉ xóa fixture ID, record ID và record thuộc hai patient mới do suite đăng ký;
-- `prepareWeek7Fixtures()`: tạo template active cùng câu hỏi/option test-only, trả về `{ fixtureIds, template: { id }, questions: { choice, text, json, foreignOption }, absentQuestionId }`; không tạo user hoặc bệnh án;
-- `prepareWeek7MedicalRecord()`: tạo mới một bệnh án pending cho patient/doctor do suite vừa đăng ký, trả về `{ fixtureId, medicalRecordId }`;
-- `cleanupWeek7Fixtures()`: xóa chính xác các token fixture được truyền vào, hỗ trợ gọi lặp an toàn và trả về `{ cleaned: true }`;
-- `prepareWeek8LesionPhoto()`: tạo ảnh test-only liên kết với bệnh nhân, bệnh án, episode và location được truyền vào, trả về `{ fixtureId, attachmentId, fileUrl }`;
-- `cleanupWeek8Fixtures()`: xóa chính xác các token fixture của Week 8, hỗ trợ gọi lặp an toàn và trả về `{ cleaned: true }`;
-- `getExpiredToken()`: JWT đã ký hợp lệ cho tài khoản chỉ định nhưng đã hết hạn.
-
-Không dùng ID cố định cho fixture được tạo mới; các ID sentinel trong workbook chỉ dùng để kiểm tra không tồn tại, và trước khi gửi PUT/DELETE lên sentinel suite phải xác nhận GET trả `9992`. Không truncate/reset toàn database. Adapter phải giới hạn cleanup đúng vào dữ liệu riêng của suite. Test tạo tài khoản bằng API rồi mới promote; do đó không cần seed tài khoản test trước.
-
-## Chạy và phạm vi
+### Chạy toàn bộ suite hiện có
 
 ```powershell
 npm test
 ```
 
-Suite [auth.integration.js](./tests/integration/week1/auth.integration.js) phủ đủ **144 case** của Week 1. Suite [users.integration.js](./tests/integration/week2/users.integration.js) phủ đủ **176 case** của Week 2. Tổng cộng có 320 test riêng, so khớp ID và mã expected với workbook. Cả hai chạy bằng cùng `npm test`; không có mock/alternate test path.
+### Chạy một tuần cụ thể
 
-Suite [permissions-branches.integration.js](./tests/integration/week3/permissions-branches.integration.js) phủ đủ **187 case** của Week 3; [organization-templates.integration.js](./tests/integration/week4/organization-templates.integration.js) phủ đủ **241 case** của Week 4; [template-sections-questions.integration.js](./tests/integration/week5/template-sections-questions.integration.js) phủ đủ **125 case** của Week 5; [medical-records-create-read.integration.js](./tests/integration/week6/medical-records-create-read.integration.js) phủ đủ **110 case** của Week 6; [medical-records-answers-status-history.integration.js](./tests/integration/week7/medical-records-answers-status-history.integration.js) phủ đủ **115 case** của Week 7; [lesion-episodes-locations.integration.js](./tests/integration/week8/lesion-episodes-locations.integration.js) phủ đủ **206 case** của Week 8. Tổng cộng có **1.304 test riêng từ Week 1–8**, so khớp ID và mã expected với workbook. Week 9–10 chưa được chuyển đổi; tiếp tục theo đúng thứ tự workbook và không dùng lại các test mock cũ.
+Truyền đường dẫn suite qua Jest:
 
-Ghi chú workbook Week 4: một số case template dùng `999999999` để đại diện mã template không tồn tại dù giá trị này có thể không hợp lệ theo format code. Suite giữ expected code của workbook; riêng DELETE sentinel được chặn an toàn bằng GET preflight trước khi gửi request.
+```powershell
+npm test -- --runTestsByPath tests/integration/week1/auth.integration.js
+npm test -- --runTestsByPath tests/integration/week2/users.integration.js
+```
 
-Week 5 giả định `{id}` trên endpoint question là `question_id` dạng chuỗi theo workbook; option `id` được backend cấp khi tạo option. Các case missing-resource dùng ID của fixture do chính test tạo rồi xóa trước, tránh tác động nhầm dữ liệu.
+Thay đường dẫn tương ứng để chạy tuần khác. Các biến môi trường và adapter vẫn bắt buộc cho mọi lệnh test.
 
-Week 7 dùng câu hỏi lựa chọn, text và JSON thuộc template fixture; `foreignOption` phải thuộc một câu hỏi lựa chọn khác trong cùng template, còn `absentQuestionId` phải được xác minh không tồn tại. Case sửa bệnh án dùng record pending mới do adapter tạo. Những record được API tạo trong các case còn lại chỉ được xóa theo ID đã ghi nhận qua HTTP admin API; tài khoản đăng ký được xóa theo chính xác số điện thoại. W7-MAS-16 giữ mã expected `1004` theo cột G dù sheet quyết định chung có thể diễn giải giới hạn số lượng request là `1009`.
+---
 
-Week 8 dùng template do `prepareWeek7Fixtures()` tạo; adapter chỉ tạo ảnh test-only cho các case upload, còn bệnh án, episode và location được tạo qua API và dọn theo ID suite ghi nhận. Bộ test cũng gọi một số GET của Week 9 để xác minh việc cascade xóa/giữ ảnh, nên backend cần có các route đọc đó để chạy Week 8. Với cascade delete, test kỳ vọng thao tác xóa trả `1000`, rồi GET tài nguyên con đã xóa trả `9992`.
+## 6. Phạm vi test hiện có
 
-Theo lựa chọn người dùng, W6-MCR-02 xác minh answers qua `GET /api/medical_records/{id}/answers` (API được lập lịch ở Week 7), nên Week 6 cần target có route đó. Với W6-MRL-14, suite giữ mã Expected `1003` ở cột G cho `patient_id` sai kiểu và đồng thời kiểm tra quyết định riêng `status` chứa SQL injection trả `1004`.
+| Tuần | Suite | Số case | Nội dung chính |
+|---|---|---:|---|
+| 1 | [auth.integration.js](./tests/integration/week1/auth.integration.js) | 144 | Signup, login, logout, OTP/password, tạo staff |
+| 2 | [users.integration.js](./tests/integration/week2/users.integration.js) | 176 | Profile, users, roles |
+| 3 | [permissions-branches.integration.js](./tests/integration/week3/permissions-branches.integration.js) | 187 | Permissions, role-permissions, branches |
+| 4 | [organization-templates.integration.js](./tests/integration/week4/organization-templates.integration.js) | 241 | Departments, rooms, templates |
+| 5 | [template-sections-questions.integration.js](./tests/integration/week5/template-sections-questions.integration.js) | 125 | Template sections, questions, options |
+| 6 | [medical-records-create-read.integration.js](./tests/integration/week6/medical-records-create-read.integration.js) | 110 | Tạo, lọc và đọc medical records |
+| 7 | [medical-records-answers-status-history.integration.js](./tests/integration/week7/medical-records-answers-status-history.integration.js) | 115 | Answers, trạng thái và lịch sử |
+| 8 | [lesion-episodes-locations.integration.js](./tests/integration/week8/lesion-episodes-locations.integration.js) | 206 | Lesions, episodes, locations |
+| 9 | [image-attachments-lesion-photos-uas7.integration.js](./tests/integration/week9/image-attachments-lesion-photos-uas7.integration.js) | 302 | Upload, attachments, lesion photos, UAS7 |
+| **Tổng** |  | **1.606** | Đối chiếu ID và mã expected theo workbook |
 
-Response code được kiểm tra theo sheet `Quyết định spec`: thành công `1000`, thiếu field `1002`, sai kiểu/request `1003`, sai giá trị `1004`, cấm/khóa/rate limit `1009`, không tồn tại `9992`, OTP `9993`, sai mật khẩu `9995`, trùng `9996`, auth/token `9998`, OTP provider `9999`.
+---
 
-Test không thực hiện request nếu thiếu URL/host confirmation, test DB confirmation hoặc adapter. Không chạy suite này trên production.
+## 7. Adapter: các nhóm chức năng cần triển khai
+
+Hợp đồng đầy đủ nằm trong [adapter.example.js](./tests/integration/adapters/adapter.example.js). Theo tuần, adapter có thể cần:
+
+- **Dùng chung:** xác nhận test database, lấy role IDs, promote/xóa tài khoản, lấy OTP/token hết hạn, bật/tắt test hooks.
+- **Week 2–3:** user liên kết, branch/department/room fixtures, permission/role/branch cleanup.
+- **Week 4–5:** dependency fixture cho organization/template và record dùng template.
+- **Week 6–7:** template/question/answer fixtures và medical-record fixture.
+- **Week 8–9:** photo fixture và test hook giả lập lỗi MinIO.
+
+Mọi hàm nhận `expectedDatabaseName`. Cách kết nối thực tế và xác minh đúng database là trách nhiệm của adapter. Các hook cleanup phải nhận và xóa đúng ID/token được suite truyền vào; không được xóa theo điều kiện rộng như “mọi user test” nếu không có giới hạn ownership rõ ràng.
+
+---
+
+## 8. Lưu ý từ workbook và giả định API
+
+- **Week 4:** một số test template dùng `999999999` làm mã không tồn tại dù có thể không hợp lệ theo format code. Trước khi PUT/DELETE sentinel, suite kiểm tra GET trả `9992`.
+- **Week 5:** `{id}` của question được hiểu là `question_id` dạng chuỗi; option IDs do backend cấp. Case missing-resource dùng fixture suite tự tạo rồi xóa.
+- **Week 6:** W6-MCR-02 xác minh answers qua `GET /api/medical_records/{id}/answers` (route được lập lịch ở Week 7). W6-MRL-14 giữ expected `1003` trong cột G cho `patient_id` sai kiểu và kiểm tra riêng SQL-like `status` trả `1004`.
+- **Week 7:** W7-MAS-16 giữ mã expected `1004` theo cột G, dù quy tắc chung về giới hạn request có thể được hiểu là `1009`.
+- **Week 8:** dùng template fixture từ Week 7 và một số GET của Week 9 để kiểm tra cascade delete. Backend cần có các route đọc liên quan; delete kỳ vọng `1000`, GET tài nguyên đã xóa kỳ vọng `9992`.
+- **Week 9:** upload một ảnh dùng field `file`, nhiều ảnh dùng `images[]`; tên field nhiều ảnh là giả định vì workbook không quy định rõ. ATU-15 bật test hook MinIO failure, kỳ vọng `1007`, rồi tắt hook trong `finally`. Các route ATV/PHX chỉ xác nhận HTTP 200.
+
+Các suite chưa được chạy với API thật vì cần URL backend, database test riêng và adapter đã triển khai.
+
+---
+
+## 9. Lỗi thường gặp
+
+| Lỗi | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| `Set MAYDAY_TEST_BASE_URL...` | Chưa cấu hình URL backend | Đặt `MAYDAY_TEST_BASE_URL` tới service đang chạy |
+| `set MAYDAY_TEST_ENV=1 and MAYDAY_TEST_DB=1` | Thiếu cờ xác nhận môi trường test | Chỉ đặt hai biến bằng `1` sau khi chắc chắn target dùng database test |
+| `MAYDAY_TEST_DB_NAME must identify an isolated test database...` | Tên database thiếu `test` hoặc không phải DB riêng | Dùng database test chuyên biệt, ví dụ `mayday_test` |
+| `MAYDAY_TEST_ADAPTER must be an absolute path...` | Chưa đặt adapter hoặc đường dẫn không tuyệt đối | Đặt đường dẫn tuyệt đối tới adapter đã triển khai |
+| `Set MAYDAY_TEST_CONFIRM_HOST...` | Host xác nhận không khớp URL | Đặt bằng chính xác hostname của `MAYDAY_TEST_BASE_URL` |
+| `Deployment targets must use HTTPS...` | Target deploy dùng HTTP | Dùng HTTPS; HTTP chỉ dùng được với loopback local |
+| `MAYDAY_TEST_BASE_URL must contain only the origin...` | URL có thêm path, query, fragment hoặc credentials | Chỉ đặt scheme + hostname + port |
+| Adapter không xác nhận test database | Adapter chưa kiểm tra đúng database thực tế | Hoàn thiện `assertTestDatabase()` trước khi chạy suite |
+| `ECONNREFUSED` / timeout | Backend chưa chạy, sai port hoặc không truy cập được | Khởi động service, kiểm tra URL/port/firewall |
+| `The target adapter must implement ...()` | Adapter thiếu hook mà suite cần | Bổ sung hook tương ứng từ `adapter.example.js` |
+
+---
+
+## 10. Cách phối hợp với đội Backend
+
+1. Đội backend tạo database test riêng, chạy migration/seed và khởi động service.
+2. Triển khai adapter theo schema/database của đội; xác minh DB trước khi thay đổi fixture.
+3. Cấu hình target bằng các biến ở mục 4, sau đó chạy một suite riêng trước.
+4. Khi suite riêng ổn, chạy `npm test` để chạy toàn bộ các tuần hiện có.
+5. Đọc response code/assertion lỗi như sai khác API contract; không “sửa” expected chỉ để làm test pass nếu chưa đối chiếu workbook/spec.
+
+Không chạy suite trên production hoặc database dùng chung.

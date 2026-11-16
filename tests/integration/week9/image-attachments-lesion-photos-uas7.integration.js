@@ -183,16 +183,6 @@ function imageBytes(type = 'png') {
     return Buffer.from('not an image');
 }
 
-function filePart(call, field, type = 'png', filename) {
-    const ext = type === 'jpeg' ? 'jpg' : type;
-    const contentType = type === 'jpeg' ? 'image/jpeg' :
-        type === 'png' ? 'image/png' : type === 'webp' ? 'image/webp' : 'text/plain';
-    return call.attach(field, imageBytes(type), {
-        filename: filename || `mayday-${uniqueName()}.${ext}`,
-        contentType
-    });
-}
-
 async function upload(actor = accounts.patientA, fields = {}, type = 'png', filename) {
     let call = request(config.baseUrl).post('/api/image-attachments/upload')
         .set('Authorization', `Bearer ${actor.token}`);
@@ -382,15 +372,6 @@ async function authCase(kind, method, endpoint, body, actor = accounts.patientA,
     return response;
 }
 
-async function invalidIds(method, path, body, token, field) {
-    const response = await api(method, path, { ...body, [field]: 'not-an-integer' }, { token });
-    return response;
-}
-
-function endpointId(base, id) {
-    return `${base}/${encodeURIComponent(String(id))}`;
-}
-
 async function runAttachmentUpload(n) {
     const path = '/api/image-attachments/upload';
     const recordId = await createRecord();
@@ -398,9 +379,27 @@ async function runAttachmentUpload(n) {
     if (n === 3) Object.assign(fields, { question_id: fixture.questions.choice.question_id, category: 'clinical', description: 'Week 9 upload' });
     if (n === 4) Object.assign(fields, { category: '', description: '' });
     if (n === 16) fields.media_type = 'video';
-    if (n === 17) fields.medical_record_id = 'abc';
-    if (n === 18) fields.medical_record_id = '0';
-    if (n === 19) Object.assign(fields, { category: 'x'.repeat(51), description: '<b>' });
+    if (n === 17 || n === 18) {
+        let response;
+        const values = n === 17 ? ['abc', '1.5', 'true', '[]'] : ['0', '-1', '99999999999999999999'];
+        for (const value of values) {
+            response = await upload(accounts.patientA, { ...fields, medical_record_id: value });
+            expectCode(response, n === 17 ? '1003' : '1004');
+        }
+        return response;
+    }
+    if (n === 19) {
+        let response;
+        for (const invalid of [
+            { category: 'x'.repeat(51) },
+            { description: 'x'.repeat(256) },
+            { description: '<b>' }
+        ]) {
+            response = await upload(accounts.patientA, { ...fields, ...invalid });
+            expectCode(response, '1004');
+        }
+        return response;
+    }
     if (n === 20) fields.medical_record_id = await deletedRecord();
     if (n === 21) fields.medical_record_id = await createRecord(accounts.patientB);
     if (n === 22) fields.question_id = fixture.absentQuestionId || uniqueName('Q_NOT_EXIST');
@@ -441,7 +440,8 @@ async function runAttachmentUpload(n) {
         for (const actor of [accounts.patientA, accounts.doctor, accounts.nurse, accounts.admin]) {
             response = await upload(actor, {});
             expectCode(response, OK);
-            expect(dataOf(response)).toEqual(expect.objectContaining({ user_id: actor.userId, media_type: 'image' }));
+            expect(String(dataOf(response)?.user_id)).toBe(String(actor.userId));
+            expect(dataOf(response)?.media_type).toBe('image');
         }
         return response;
     }
@@ -453,9 +453,28 @@ async function runAttachmentUpload(n) {
         }
         return response;
     }
-    if (n === 5) return upload(accounts.patientA, fields, 'jpeg', 'ảnh tổn thương 1.jpg');
+    if (n === 5) {
+        const response = await upload(accounts.patientA, fields, 'jpeg', 'ảnh tổn thương 1.jpg');
+        if (String(response?.body?.code) === OK) expect(dataOf(response)?.file_name).toBe('ảnh tổn thương 1.jpg');
+        return response;
+    }
     const actor = accounts.patientA;
     const response = await upload(actor, fields, n === 1 || n === 6 ? 'jpeg' : 'png');
+    if (String(response?.body?.code) === OK && [1, 3, 4, 23].includes(n)) {
+        expect(dataOf(response)).toEqual(expect.objectContaining({
+            file_type: n === 1 ? 'image/jpeg' : expect.any(String),
+            media_type: 'image',
+            file_name: expect.any(String),
+            file_url: expect.any(String)
+        }));
+        expect(String(dataOf(response).user_id)).toBe(String(accounts.patientA.userId));
+        if (n === 3) expect(dataOf(response)).toEqual(expect.objectContaining({
+            medical_record_id: expect.anything(),
+            question_id: fixture.questions.choice.question_id
+        }));
+        if (n === 4) expect(dataOf(response)).toEqual(expect.objectContaining({ category: null, description: null }));
+        if (n === 23) expect(String(dataOf(response).user_id)).toBe(String(accounts.patientA.userId));
+    }
     if (String(response?.body?.code) === OK && n === 6) {
         const id = requiredId(response, ['id', 'attachment_id'], 'attachment upload');
         const view = await api('get', `/api/image-attachments/view/${id}`, undefined, { token: actor.token });
@@ -507,6 +526,7 @@ async function runAttachmentList(n) {
         await upload(accounts.patientA);
         await upload(accounts.patientA);
     }
+    if (n === 4) await upload(accounts.patientB);
     if (n === 3) {
         const empty = await registerAccount('empty', 'patient', roles.patient);
         return api('get', `/api/image-attachments/user/${empty.userId}`, undefined, { token: empty.token });
@@ -521,12 +541,19 @@ async function runAttachmentList(n) {
     if (n === 8 || n === 9) return api('get', `/api/image-attachments/user/${n === 8 ? 'abc' : '0'}`, undefined, { token: accounts.admin.token });
     if (n >= 10) return authCase(n === 10 ? 'missing' : n === 11 ? 'invalid' : n === 12 ? 'expired' : 'logout',
         'get', `/api/image-attachments/user/${accounts.patientA.userId}`, undefined, accounts.patientA);
-    const actor = n === 2 ? accounts.doctor : n === 1 || n === 3 || n === 4 || n === 5 ? accounts.patientA : accounts.patientA;
     if (n === 6) return api('get', `/api/image-attachments/user/${accounts.patientB.userId}`, undefined, { token: accounts.patientA.token });
-    const response = await api('get', `/api/image-attachments/user/${target.userId}`, undefined, { token: actor.token });
+    const actors = n === 2 ? [accounts.doctor, accounts.nurse, accounts.admin] : [accounts.patientA];
+    let response;
+    for (const actor of actors) {
+        response = await api('get', `/api/image-attachments/user/${target.userId}`, undefined, { token: actor.token });
+        expectCode(response, OK);
+    }
     if ([1, 2, 4, 5].includes(n)) {
         expect(itemsOf(response).length).toBeGreaterThan(0);
-        if (n === 4) expect(itemsOf(response).every(item => String(item.user_id) === String(accounts.patientA.userId))).toBe(true);
+        if (n === 4) {
+            expect(itemsOf(response).every(item => String(item.user_id) === String(accounts.patientA.userId))).toBe(true);
+            expect(itemsOf(response).some(item => String(item.user_id) === String(accounts.patientB.userId))).toBe(false);
+        }
         if (n === 5) expect(itemsOf(response).map(item => item.created_at).filter(Boolean)).toEqual(
             [...itemsOf(response).map(item => item.created_at).filter(Boolean)].sort().reverse());
     }
@@ -555,11 +582,14 @@ async function runAttachmentView(n) {
         return authCase('logout', 'get', `/api/image-attachments/view/${id}`, undefined, owner);
     }
     if (n === 3) return api('get', `/api/image-attachments/view/${id}`, undefined, { token: accounts.patientB.token });
-    const actor = n === 2 ? accounts.doctor : owner;
-    const response = await api('get', `/api/image-attachments/view/${id}`, undefined, { token: actor.token });
-    expect(response.status).toBe(200);
-    expect(response.headers['content-type']).toMatch(/^image\//);
-    expect(Buffer.compare(response.body, imageBytes('png'))).toBe(0);
+    const actors = n === 2 ? [accounts.doctor, accounts.nurse, accounts.admin] : [owner];
+    let response;
+    for (const actor of actors) {
+        response = await api('get', `/api/image-attachments/view/${id}`, undefined, { token: actor.token });
+        expect(response.status).toBe(200);
+        expect(response.headers['content-type']).toMatch(/^image\//);
+        expect(Buffer.compare(response.body, imageBytes('png'))).toBe(0);
+    }
     return response;
 }
 
@@ -587,12 +617,18 @@ async function runAttachmentDelete(n) {
         return api('delete', `/api/image-attachments/${p.attachmentId}`, undefined, { token: accounts.patientA.token });
     }
     if (n === 6 || n === 7) {
-        const actor = n === 6 ? accounts.patientB : accounts.doctor;
-        return api('delete', `/api/image-attachments/${id}`, undefined, { token: actor.token });
+        const actors = n === 6 ? [accounts.patientB] : [accounts.doctor, accounts.nurse];
+        let response;
+        for (const actor of actors) {
+            response = await api('delete', `/api/image-attachments/${id}`, undefined, { token: actor.token });
+            expectCode(response, '1009');
+        }
+        return response;
     }
     const actor = n === 2 ? accounts.admin : accounts.patientA;
     const response = await api('delete', `/api/image-attachments/${id}`, undefined, { token: actor.token });
     if (n === 1 || n === 2) attachments.delete(id);
+    if (n === 1 || n === 2) expect(dataOf(response)).toEqual({});
     if (n === 3 || n === 4) {
         if (n === 4) {
             expectCode(response, OK);
@@ -622,16 +658,40 @@ async function runPhotoCreate(n) {
     const payload = photoPayload({ ...base, attachmentId });
     if (n === 3) Object.assign(payload, { taken_at: '2026-01-02 12:00:00', itch_score: '0', pain_score: '10', burn_score: '3', hives_count: '5', local_auas: '2', annotated_url: 'https://example.test/a.jpg' });
     if (n === 6) Object.assign(payload, { itch_score: '0', pain_score: '10' });
-    if (n === 7) delete payload.episode_id;
+    if (n === 7) {
+        let response;
+        for (const field of ['episode_id', 'attachment_id', 'milestone']) {
+            const missing = { ...payload };
+            delete missing[field];
+            response = await api('post', '/api/lesion-photos', missing, { token: actor.token });
+            expectCode(response, '1002');
+        }
+        return response;
+    }
     if (n === 8) Object.keys(payload).forEach(key => delete payload[key]);
-    if (n === 9) payload.episode_id = 'abc';
-    if (n === 10) payload.episode_id = '0';
-    if (n === 11) payload.itch_score = 5;
-    if (n === 12) payload.milestone = 'begin';
-    if (n === 13) payload.itch_score = '11';
-    if (n === 14) payload.hives_count = '501';
-    if (n === 15) payload.local_auas = '101';
-    if (n === 16) payload.annotated_url = 'ftp://invalid.test/a';
+    if (n === 9 || n === 10 || n === 11 || n === 12 || n === 13 || n === 14 || n === 15 || n === 16) {
+        const cases = n === 9
+            ? [{ episode_id: true }, { episode_id: 'abc' }, { episode_id: 1.5 }, { attachment_id: [] }]
+            : n === 10
+                ? [{ episode_id: 0 }, { episode_id: -1 }, { attachment_id: 0 }, { attachment_id: -1 }]
+                : n === 11
+                    ? [{ milestone: 1 }, { itch_score: 5 }, { hives_count: 3 }, { annotated_url: 123 }, { taken_at: 123 }]
+                    : n === 12
+                        ? [{ milestone: 'begin' }, { milestone: 'START' }, { milestone: 'improving' }, { milestone: '' }]
+                        : n === 13
+                            ? ['-1', '11', 'abc', '1.5'].map(itch_score => ({ itch_score }))
+                            : n === 14
+                                ? ['-1', '501', 'abc'].map(hives_count => ({ hives_count }))
+                                : n === 15
+                                    ? ['-1', '101', 'abc'].map(local_auas => ({ local_auas }))
+                                    : [{ annotated_url: 'abc' }, { annotated_url: 'ftp://invalid.test/a' }, { annotated_url: `https://${'x'.repeat(500)}` }];
+        let response;
+        for (const invalid of cases) {
+            response = await api('post', '/api/lesion-photos', { ...payload, ...invalid }, { token: actor.token });
+            expectCode(response, n === 9 || n === 11 ? '1003' : n === 10 || n >= 12 ? '1004' : '1004');
+        }
+        return response;
+    }
     if (n === 17) payload.taken_at = '24/04/2026';
     if (n === 18) payload.taken_at = '2999-01-01 00:00:00';
     if (n === 19) {
@@ -661,10 +721,16 @@ async function runPhotoCreate(n) {
         'post', '/api/lesion-photos', payload, accounts.patientA);
     if (n === 31) return api('post', '/api/lesion-photos', payload, { token: accounts.admin.token });
     if (n === 1 || n === 2 || n === 3 || n === 4 || n === 5 || n === 6) {
-        const response = await api('post', '/api/lesion-photos', payload, { token: actor.token });
+        let response = await api('post', '/api/lesion-photos', payload, { token: actor.token });
         if (String(response?.body?.code) === OK) {
             const photoId = requiredId(response, ['photo_id', 'id'], 'photo creation');
             photos.set(photoId, actor);
+            expect(dataOf(response)).toEqual(expect.objectContaining({
+                photo_id: expect.anything(),
+                episode_id: base.episodeId,
+                attachment_id: attachmentId,
+                milestone: 'start'
+            }));
             if (n === 2) {
                 const deleted = await api('delete', `/api/lesion-photos/${photoId}`, undefined, { token: actor.token });
                 expectCode(deleted, OK);
@@ -682,6 +748,16 @@ async function runPhotoCreate(n) {
                 expect(itemsOf(listed).some(item => String(idOf(item, ['photo_id', 'id'])) === photoId)).toBe(true);
             }
             if (n === 3) expect(dataOf(response)).toEqual(expect.objectContaining({ episode_id: base.episodeId, location_id: base.locationId }));
+        }
+        if (n === 4) {
+            const nurseFile = await upload(accounts.nurse);
+            expectCode(nurseFile, OK);
+            response = await api('post', '/api/lesion-photos', {
+                ...payload,
+                attachment_id: requiredId(nurseFile, ['id', 'attachment_id'])
+            }, { token: accounts.nurse.token });
+            expectCode(response, OK);
+            photos.set(requiredId(response, ['photo_id', 'id']), accounts.nurse);
         }
         return response;
     }
@@ -739,8 +815,14 @@ async function runPhotoList(n) {
     if (n === 1 || n === 2 || n === 4) {
         const photo = await createPhoto(base, n === 2 ? accounts.doctor : base.owner, { taken_at: '2026-01-02 10:00:00' });
         if (n === 4) await createPhoto(base, base.owner, { taken_at: '2026-01-01 10:00:00' });
-        const actor = n === 2 ? accounts.doctor : base.owner;
-        const response = await api('get', `/api/lesion-photos/location/${base.locationId}`, undefined, { token: actor.token });
+        const actors = n === 2 ? [accounts.doctor, accounts.nurse, accounts.admin] : [base.owner];
+        let response;
+        for (const actor of actors) response = await api('get', `/api/lesion-photos/location/${base.locationId}`, undefined, { token: actor.token });
+        if ([1, 2].includes(n)) {
+            expect(itemsOf(response)).toEqual(expect.arrayContaining([
+                expect.objectContaining({ photo_id: photo.photoId, episode_id: base.episodeId, location_id: base.locationId })
+            ]));
+        }
         if (n === 1 || n === 2) expect(itemsOf(response).some(item => String(idOf(item, ['photo_id', 'id'])) === photo.photoId)).toBe(true);
         if (n === 4) expect(itemsOf(response).length).toBeGreaterThanOrEqual(2);
         return response;
@@ -801,7 +883,16 @@ async function runPhotoUpdate(n) {
     if (n === 9) body = { hives_count: '501' };
     if (n === 10) body = { local_auas: '101' };
     if (n === 11) body = { annotated_url: 'ftp://bad.test' };
-    if (n === 12) body = { photo_id: '999999', episode_id: '999999', attachment_id: '999999', taken_at: '2999-01-01 00:00:00', milestone: 'peak' };
+    if (n === 12) {
+        const foreign = await photoFixture();
+        body = {
+            photo_id: foreign.photoId,
+            episode_id: foreign.episodeId,
+            attachment_id: foreign.attachmentId,
+            taken_at: '2000-01-01 00:00:00',
+            milestone: 'peak'
+        };
+    }
     const response = await api('patch', `/api/lesion-photos/${base.photoId}/milestone`, body, { token: accounts.patientA.token });
     if (String(response?.body?.code) === OK && [1, 2, 3, 4, 12].includes(n)) {
         const reread = await api('get', `/api/lesion-photos/location/${base.locationId}`, undefined, { token: accounts.patientA.token });
@@ -918,7 +1009,33 @@ async function runAnswerImageCreate(n) {
     if (n === 17) return api('post', '/api/answer-images', undefined, { token: actor.token, rawBody: '{' });
     if (n >= 18 && n <= 21) return authCase(n === 18 ? 'missing' : n === 19 ? 'invalid' : n === 20 ? 'expired' : 'logout',
         'post', '/api/answer-images', body, accounts.patientA);
-    return api('post', '/api/answer-images', body, { token: actor.token });
+    const response = await api('post', '/api/answer-images', body, { token: actor.token });
+    if (String(response?.body?.code) === OK) {
+        const id = idOf(dataOf(response), ['id', 'answer_image_id']);
+        if (id !== undefined) answerImages.set(String(id), actor);
+    }
+    if (String(response?.body?.code) === OK && [1, 2, 3].includes(n)) {
+        expect(dataOf(response)).toEqual(expect.objectContaining({
+            answer_id: answer.answerId,
+            attachment_id: attachmentId
+        }));
+    }
+    if (n === 3) {
+        const nurseFile = await upload(accounts.patientA);
+        expectCode(nurseFile, OK);
+        const nurseLink = await api('post', '/api/answer-images', {
+            answer_id: answer.answerId,
+            attachment_id: requiredId(nurseFile, ['id', 'attachment_id'])
+        }, { token: accounts.nurse.token });
+        expectCode(nurseLink, OK);
+        answerImages.set(requiredId(nurseLink, ['id', 'answer_image_id']), accounts.nurse);
+    }
+    if (n === 4) {
+        const listed = await api('get', `/api/answer-images/${answer.answerId}`, undefined, { token: accounts.patientA.token });
+        expectCode(listed, OK);
+        expect(itemsOf(listed).some(item => String(idOf(item, ['attachment_id'])) === String(attachmentId))).toBe(true);
+    }
+    return response;
 }
 
 async function deletedAnswerId() {
@@ -944,15 +1061,18 @@ async function runAnswerImageList(n) {
         expectCode(link, OK); answerImages.set(requiredId(link, ['id', 'answer_image_id']), n === 2 ? accounts.doctor : owner);
     }
     const actor = n === 2 ? accounts.doctor : n === 4 ? accounts.patientA : owner;
-    return api('get', `/api/answer-images/${answer.answerId}`, undefined, { token: actor.token });
+    const response = await api('get', `/api/answer-images/${answer.answerId}`, undefined, { token: actor.token });
+    if ([1, 2].includes(n)) expect(itemsOf(response)).toHaveLength(1);
+    if (n === 3) expect(itemsOf(response)).toHaveLength(0);
+    return response;
 }
 
 async function runAnswerImageDelete(n) {
     if (n === 4) return api('delete', '/api/answer-images/abc', undefined, { token: accounts.patientA.token });
     if (n === 5) return api('delete', '/api/answer-images/0', undefined, { token: accounts.patientA.token });
-    if (n === 6) {
+    if (n === 3 || n === 6) {
         const link = await linkFixture();
-        await api('delete', `/api/answer-images/${link.linkId}`, undefined, { token: accounts.patientA.token });
+        expectCode(await api('delete', `/api/answer-images/${link.linkId}`, undefined, { token: accounts.patientA.token }), OK);
         answerImages.delete(link.linkId);
         return api('delete', `/api/answer-images/${link.linkId}`, undefined, { token: accounts.patientA.token });
     }
@@ -991,6 +1111,12 @@ async function runAnswerImageDelete(n) {
 async function runAnswerImageBulk(n) {
     const answer = await answerFixture(accounts.patientA, n === 15 ? accounts.doctor : accounts.patientA);
     const uploads = [];
+    let beforeLinks;
+    if (n === 10 || n === 11) {
+        const before = await api('get', `/api/answer-images/${answer.answerId}`, undefined, { token: accounts.patientA.token });
+        expectCode(before, OK);
+        beforeLinks = new Set(itemsOf(before).map(item => String(idOf(item, ['id', 'answer_image_id']))));
+    }
     const addUpload = async actor => {
         const response = await upload(actor);
         expectCode(response, OK);
@@ -1009,7 +1135,10 @@ async function runAnswerImageBulk(n) {
         uploads.push(id, id);
     }
     if (n === 9) for (let i = 0; i < 11; i++) uploads.push(await addUpload(accounts.patientA));
-    if (n === 10) uploads.push(await addUpload(accounts.patientA), '999999999');
+    if (n === 10) {
+        uploads.push(await addUpload(accounts.patientA));
+        uploads.push(await deletedAttachmentId());
+    }
     if (n === 12) uploads.push(await addUpload(accounts.patientB));
     if (n === 3) return api('post', '/api/answer-images/bulk', {}, { token: accounts.patientA.token });
     if (n === 4) return api('post', '/api/answer-images/bulk', { answer_id: answer.answerId, attachments: [] }, { token: accounts.patientA.token });
@@ -1019,10 +1148,22 @@ async function runAnswerImageBulk(n) {
     if (n === 10) {
         const absentAttachment = await deletedAttachmentId();
         const validAttachment = await addUpload(accounts.patientA);
-        return api('post', '/api/answer-images/bulk', {
+        const response = await api('post', '/api/answer-images/bulk', {
             answer_id: answer.answerId,
             attachments: [{ attachment_id: validAttachment }, { attachment_id: absentAttachment }]
         }, { token: accounts.patientA.token });
+        if (String(response?.body?.code) === OK) {
+            for (const item of itemsOf(response)) {
+                const id = idOf(item, ['id', 'answer_image_id']);
+                if (id !== undefined) answerImages.set(String(id), accounts.patientA);
+            }
+        }
+        const after = await api('get', `/api/answer-images/${answer.answerId}`, undefined, { token: accounts.patientA.token });
+        expectCode(after, OK);
+        const newLinks = itemsOf(after).filter(item => !beforeLinks.has(String(idOf(item, ['id', 'answer_image_id']))));
+        for (const item of newLinks) answerImages.set(String(idOf(item, ['id', 'answer_image_id'])), accounts.patientA);
+        expect(newLinks).toHaveLength(0);
+        return response;
     }
     if (n === 13) return api('post', '/api/answer-images/bulk', {
         answer_id: await deletedAnswerId(),
@@ -1053,6 +1194,13 @@ async function runAnswerImageBulk(n) {
     if ([1, 2].includes(n) && String(response?.body?.code) === OK) {
         expect(dataOf(response)?.total).toBe(String(n === 1 ? 3 : 10));
         expect(itemsOf(response)).toHaveLength(n === 1 ? 3 : 10);
+    }
+    if (n === 11) {
+        const after = await api('get', `/api/answer-images/${answer.answerId}`, undefined, { token: accounts.patientA.token });
+        expectCode(after, OK);
+        const newLinks = itemsOf(after).filter(item => !beforeLinks.has(String(idOf(item, ['id', 'answer_image_id']))));
+        for (const item of newLinks) answerImages.set(String(idOf(item, ['id', 'answer_image_id'])), accounts.patientA);
+        expect(newLinks).toHaveLength(0);
     }
     return response;
 }

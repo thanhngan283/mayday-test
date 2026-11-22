@@ -143,16 +143,69 @@ describe('Week 9 - Lesion Photos, Image Attachments, Answer Images & UAS7 Scorin
       expectResponseCode(res.body.code, RESPONSE_CODES.OK);
     });
 
-    it('[TC-IMG-ATT-03] Negative Case (Missing File): Gọi POST /api/image-attachments/upload không đính kèm file -> Trả về mã 1002 hoặc 1007', async () => {
+    it('[TC-IMG-ATT-03] Negative Case (Missing File): Gọi POST /api/image-attachments/upload không đính kèm file -> Trả về mã 1002', async () => {
       const res = await apiClients.lesionUas7.post(
         '/api/image-attachments/upload',
         {},
         { token: sessions.patient.token }
       );
-      expectResponseCode(res.body.code, [
-        RESPONSE_CODES.MISSING_PARAMETER,
-        RESPONSE_CODES.UPLOAD_FILE_FAILED,
-      ]);
+      expect(res.body.code).toBe(RESPONSE_CODES.MISSING_PARAMETER);
+    });
+
+    it(
+      '[TC-IMG-ATT-04] Negative Case (File Too Big > 10MB): Upload ảnh PNG hợp lệ dung lượng 11 MB tạo động trong RAM -> Trả về mã 1006',
+      async () => {
+        // Tạo động Buffer 11 MB ngay trong RAM và ghi đè PNG magic bytes (89 50 4E 47 0D 0A 1A 0A)
+        // để vượt qua bước kiểm tra định dạng (tránh 1003) và kích hoạt đúng kiểm tra giới hạn 10 MB (1006)
+        const oversizedPngBuffer = Buffer.alloc(11 * 1024 * 1024);
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(oversizedPngBuffer, 0);
+
+        const res = await apiClients.lesionUas7.uploadFile(
+          '/api/image-attachments/upload',
+          'image',
+          oversizedPngBuffer,
+          'oversized_11mb_lesion.png',
+          { medical_record_id: chronicRecordId, description: 'Ảnh vượt ngưỡng 10 MB' },
+          { token: sessions.patient.token }
+        );
+
+        const uploadedId = res.body?.data?.id || res.body?.data?.image_id;
+        if (uploadedId) {
+          testCaseTeardown.registerImageAttachment(uploadedId, sessions.patient.token);
+        }
+
+        expect(res.body.code).toBe(RESPONSE_CODES.FILE_TOO_BIG);
+      },
+      30000
+    );
+
+    it('[TC-IMG-ATT-05] Negative Case (Max Images Exceeded > 10): Upload 11 ảnh PNG 1x1 trong 1 request lên POST /api/image-attachments/upload-multiple -> Trả về mã 1008', async () => {
+      const req = apiClients.lesionUas7
+        .raw()
+        .post('/api/image-attachments/upload-multiple')
+        .set('Authorization', `Bearer ${sessions.patient.token}`)
+        .field('user_id', String(sessions.patient.userId));
+
+      // Đính kèm 11 ảnh PNG 1x1 hợp lệ tạo trong RAM (vượt giới hạn tối đa 10 ảnh/lần)
+      for (let i = 1; i <= 11; i++) {
+        req.attach('images', validPngBuffer, {
+          filename: `san_phu_batch_${i}.png`,
+          contentType: 'image/png',
+        });
+      }
+
+      const res = await req;
+
+      if (Array.isArray(res.body?.data)) {
+        for (const item of res.body.data) {
+          const uploadedId = item?.id || item?.image_id;
+          if (uploadedId) {
+            testCaseTeardown.registerImageAttachment(uploadedId, sessions.patient.token);
+          }
+        }
+      }
+
+      expect(res.body.code).toBe(RESPONSE_CODES.MAX_IMAGES_EXCEEDED);
     });
   });
 
@@ -225,6 +278,55 @@ describe('Week 9 - Lesion Photos, Image Attachments, Answer Images & UAS7 Scorin
       );
       expectResponseCode(res.body.code, RESPONSE_CODES.MISSING_PARAMETER);
     });
+
+    it(
+      '[TC-ANS-IMG-03] Negative Case (Max Images Exceeded on Bulk Answer Link): Gắn 11 ảnh vượt giới hạn tối đa mỗi câu trả lời qua POST /api/answer-images/bulk -> Trả về mã 1008',
+      async () => {
+        // Setup qua API thật: Upload 11 ảnh PNG 1x1 siêu nhẹ trong RAM và đăng ký Teardown đầy đủ
+        const uploadedImageIds: Array<number | string> = [];
+        for (let i = 1; i <= 11; i++) {
+          const uploadRes = await apiClients.lesionUas7.uploadFile(
+            '/api/image-attachments/upload',
+            'image',
+            validPngBuffer,
+            `anh_bulk_limit_${i}.png`,
+            { medical_record_id: chronicRecordId },
+            { token: sessions.patient.token }
+          );
+          const id = uploadRes.body?.data?.id || uploadRes.body?.data?.image_id;
+          if (id) {
+            uploadedImageIds.push(id);
+            testCaseTeardown.registerImageAttachment(id, sessions.patient.token);
+          }
+        }
+
+        const targetImageIds =
+          uploadedImageIds.length === 11
+            ? uploadedImageIds
+            : Array.from({ length: 11 }, (_, idx) => uploadedImageIds[idx] ?? idx + 1);
+
+        const bulkRes = await apiClients.lesionUas7.post(
+          '/api/answer-images/bulk',
+          {
+            answer_id: 1,
+            image_ids: targetImageIds,
+            attachments: targetImageIds.map((attachmentId) => ({ attachment_id: attachmentId })),
+          },
+          { token: sessions.patient.token }
+        );
+
+        if (Array.isArray(bulkRes.body?.data)) {
+          for (const mapping of bulkRes.body.data) {
+            if (mapping?.id) {
+              testCaseTeardown.registerAnswerImage(mapping.id, sessions.patient.token);
+            }
+          }
+        }
+
+        expect(bulkRes.body.code).toBe(RESPONSE_CODES.MAX_IMAGES_EXCEEDED);
+      },
+      30000
+    );
   });
 
   // ==========================================================================

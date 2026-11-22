@@ -242,15 +242,13 @@ describe('Week 1 - Authentication & Account Management (Real API, Zero Mocking)'
       expectResponseCode(res.body.code, RESPONSE_CODES.NOT_FOUND);
     });
 
-    it('[TC-LOGIN-07] Negative Case (Wrong Password): Nhập sai mật khẩu (mã cũ 3008 gộp về 9995 hoặc 1004) -> Bị từ chối đăng nhập', async () => {
+    it('[TC-LOGIN-07] Negative Case (Wrong Password): Nhập sai mật khẩu (mã cũ 3008 gộp về 9995) -> Trả về mã 9995', async () => {
       const res = await apiClients.auth.post('/api/auth/login', {
         phone: ENV.CREDENTIALS.ADMIN.phone,
         password: 'WrongPassword@99999',
       });
 
-      expect([RESPONSE_CODES.USER_NOT_VALIDATED, RESPONSE_CODES.INVALID_PARAMETER_VALUE]).toContain(
-        String(res.body.code)
-      );
+      expect(res.body.code).toBe(RESPONSE_CODES.USER_NOT_VALIDATED);
     });
 
     it('[TC-LOGIN-08] Negative Case (Invalid Format): Số điện thoại sai định dạng chuẩn VN -> Trả về mã 1004', async () => {

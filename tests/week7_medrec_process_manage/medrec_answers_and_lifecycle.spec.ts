@@ -1002,7 +1002,7 @@ describe('Week 7 - Medical Records: Answers Upsert, Doctor Conclusion, History &
       expectResponseCode(res.body.code, RESPONSE_CODES.INVALID_TOKEN);
     });
 
-    it('[TC-DELETE-MR-12] Edge Case (Foreign Key / Cascade): Xóa bệnh án đã có dữ liệu answers trong bảng answers (Kiểm tra CASCADE hoặc RESTRICT 1010/1000)', async () => {
+    it('[TC-DELETE-MR-12] Edge Case (Foreign Key / Cascade): Xóa bệnh án đã có dữ liệu answers trong bảng answers (Kiểm tra CASCADE 1000 hoặc RESTRICT 1009)', async () => {
       await apiClients.medrec.put(
         `/api/medical_records/${deletableRecordId}/answers`,
         { answers: UI_PATIENT_ACUTE_ANSWERS },
@@ -1013,7 +1013,7 @@ describe('Week 7 - Medical Records: Answers Upsert, Doctor Conclusion, History &
         token: sessions.admin.token,
       });
 
-      expect([RESPONSE_CODES.OK, RESPONSE_CODES.ACTION_ALREADY_DONE]).toContain(String(res.body.code));
+      expect([RESPONSE_CODES.OK, RESPONSE_CODES.NOT_ACCESS]).toContain(res.body.code);
     });
   });
 });

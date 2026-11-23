@@ -1,6 +1,6 @@
 # Hệ Thống Kiểm Thử Tự Động Hóa API Thực Tế (Black-box Real API Testing)
 ## Dự Án: Quản Lý Bệnh Án Mày Đay & Phản Vệ (Urticaria & Anaphylaxis Medical Record System)
-### Lưu ý: Toàn bộ các từ khóa Doc và Work là thư mục Document và Work của người dùng khi clone về. chứ không phải có sẵn trong github/git. Toàn bộ cách cài chi tiết được để trong folder /docs của project, các nhóm có thể tham khảo
+### Lưu ý: Toàn bộ các từ khóa Doc và Work là thư mục Document và Work của người dùng khi clone về. chứ không phải có sẵn trong github/git. Toàn bộ cách cài chi tiết được để trong folder [/docs](./docs) của project, các nhóm có thể tham khảo
 Dự án kiểm thử hộp đen (Black-box Testing) gọi trực tiếp vào hệ thống Backend API thực tế (**Zero Mocking**) được xây dựng bằng **TypeScript**, **Jest**, **Supertest** và xuất báo cáo trực quan bằng **`jest-html-reporters`**.
 
 > **Nguyên tắc phân tách thư mục**:

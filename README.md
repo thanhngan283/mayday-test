@@ -1,11 +1,11 @@
 # Hệ Thống Kiểm Thử Tự Động Hóa API Thực Tế (Black-box Real API Testing)
 ## Dự Án: Quản Lý Bệnh Án Mày Đay & Phản Vệ (Urticaria & Anaphylaxis Medical Record System)
-
+### Lưu ý: Toàn bộ các từ khóa Doc và Work là thư mục Document và Work của người dùng khi clone về. chứ không phải có sẵn trong github/git. Toàn bộ cách cài chi tiết được để trong folder /docs của project, các nhóm có thể tham khảo
 Dự án kiểm thử hộp đen (Black-box Testing) gọi trực tiếp vào hệ thống Backend API thực tế (**Zero Mocking**) được xây dựng bằng **TypeScript**, **Jest**, **Supertest** và xuất báo cáo trực quan bằng **`jest-html-reporters`**.
 
 > **Nguyên tắc phân tách thư mục**:
-> - `D:\doAn`: Thư mục chứa tài liệu đặc tả gốc (API HTML specs, Thiết kế giao diện Bác sĩ & Bệnh nhân, Bảng gộp mã phản hồi, `TestCaseDesign.md`).
-> - `D:\doAnWork`: Thư mục chứa toàn bộ mã nguồn kiểm thử tự động, cấu hình, fixtures đối chiếu UI và báo cáo HTML.
+> - `D:\Doc`: Thư mục chứa tài liệu đặc tả gốc (API HTML specs, Thiết kế giao diện Bác sĩ & Bệnh nhân, Bảng gộp mã phản hồi, `TestCaseDesign.md`).
+> - `D:\Work`: Thư mục chứa toàn bộ mã nguồn kiểm thử tự động, cấu hình, fixtures đối chiếu UI và báo cáo HTML.
 
 ---
 
@@ -26,10 +26,10 @@ npm -v
 
 ## 2. Hướng Dẫn Cài Đặt (Installation)
 
-Mở Terminal / PowerShell tại thư mục `D:\doAnWork` và chạy lệnh cài đặt toàn bộ thư viện:
+Mở Terminal / PowerShell tại thư mục `D:\Work` và chạy lệnh cài đặt toàn bộ thư viện:
 
 ```bash
-cd D:\doAnWork
+cd D:\Work
 npm install
 ```
 *(Lưu ý cho Windows PowerShell: Nếu máy tính đang bật `Restricted ExecutionPolicy` chặn file `npm.ps1`, bạn có thể chạy `npm.cmd install` và `npm.cmd test`, hoặc mở khóa tạm thời bằng `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`).*
@@ -91,7 +91,7 @@ PATIENT_PASSWORD=Patient@123456
 Toàn bộ `tests/` được chia thành **10 thư mục tuần** tương ứng chính xác với bảng phân phối 91 API trong tài liệu `D:\doAn\api\1. Weekly API.html`:
 
 ```text
-D:\doAnWork/
+D:\Work/
 ├── .env.example                     # Mẫu cấu hình biến môi trường
 ├── .env                             # Cấu hình Base URL & tài khoản thực thi
 ├── package.json                     # Khai báo scripts và dependencies
@@ -207,7 +207,7 @@ npx jest tests/week6_medrec_create_read/medrec_classify_and_create.spec.ts
 Ngay sau khi bất kỳ lệnh `npm test` hoặc `npm run test:week*` nào kết thúc, báo cáo HTML sẽ tự động được xuất ra tại:
 
 ```text
-D:\doAnWork\reports\test-report.html
+D:\Work\reports\test-report.html
 ```
 
 Để mở trực tiếp báo cáo trên trình duyệt mặc định của Windows (PowerShell/CMD):
